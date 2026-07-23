@@ -299,6 +299,12 @@ output { color: var(--gold); }
 .path-copy { display: block; margin-top: 12px; padding: 10px; overflow-wrap: anywhere; border: 2px solid #62432e; border-radius: 6px; background: #fff0bd; color: #884b21; }
 .preview-card strong { display: block; margin: 16px 0 6px; }.preview-question { margin-top: 15px; padding: 15px; border: 2px solid #664530; border-left: 7px solid #2586bd; border-radius: 6px; background: #fff0bd; color: #493229; }
 .notice { padding: 14px; border: 3px solid #315e3e; border-radius: 8px; background: linear-gradient(#65b86c, #3f814d); color: white; box-shadow: inset 0 2px rgba(255,255,255,.25), 0 4px #2d211b; text-shadow: 0 2px #285135; }
+.notice--warn { border-color: #7a4a1c; background: linear-gradient(#d99a3f, #a8641f); text-shadow: 0 2px #6d3d13; width: min(1160px, calc(100% - 40px)); margin: 20px auto 0; }
+.notice--warn code { padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,.28); }
+.admin-auth { display: flex; align-items: center; gap: 10px; }
+.admin-auth input { width: 190px; font-size: 12px; }
+.auth-pill { padding: 6px 12px; border: 2px solid #51301f; border-radius: 999px; background: #8a4a2c; color: #ffe9b8; font-size: 11px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.auth-pill--ok { background: #3f814d; border-color: #315e3e; color: #eaffe6; }
 .library-panel { width: min(1160px, calc(100% - 40px)); margin: 0 auto; }
 .library-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
 .library-heading h2 { margin-bottom: 5px; }.library-heading p { margin: 0; }

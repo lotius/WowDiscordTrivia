@@ -1,5 +1,7 @@
 import cors from "cors";
 import express from "express";
+import type { NextFunction, Request, Response } from "express";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -16,6 +18,13 @@ import { installGameEngine } from "./game-engine.js";
 import { libraryImportSchema } from "./validation.js";
 
 const root = process.cwd();
+
+// Vite loads .env on its own for VITE_* client variables, but nothing was
+// loading it for the server, so DISCORD_CLIENT_SECRET and ADMIN_TOKEN were
+// always undefined. Real environment variables still win over the file.
+const envFile = path.join(root, ".env");
+if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
+
 const uploads = path.join(root, "uploads");
 fs.mkdirSync(uploads, { recursive: true });
 
@@ -51,9 +60,39 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: "5mb" }));
 app.use("/uploads", express.static(uploads));
 
+const adminToken = process.env.ADMIN_TOKEN ?? "";
+
+function matchesToken(provided: string) {
+  const left = Buffer.from(provided);
+  const right = Buffer.from(adminToken);
+  // timingSafeEqual throws on length mismatch, so screen that first.
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+/**
+ * The library routes expose every correct answer and allow destructive writes.
+ * Once the server is reachable through a tunnel, every player in the activity
+ * can reach them too, so they require a shared secret. The token is entered in
+ * the admin UI and kept in localStorage rather than bundled, so it never ships
+ * to players.
+ */
+function requireAdmin(request: Request, response: Response, next: NextFunction) {
+  if (!adminToken) {
+    return response.status(503).json({
+      ok: false,
+      error: "Library management is disabled. Set ADMIN_TOKEN in .env and restart."
+    });
+  }
+  if (!matchesToken(String(request.get("x-admin-token") ?? ""))) {
+    return response.status(401).json({ ok: false, error: "Invalid admin token." });
+  }
+  return next();
+}
+
 app.get("/api/health", (_, response) => response.json({ ok: true }));
 app.get("/api/categories", (_, response) => response.json(listCategories()));
-app.get("/api/questions", (request, response) => {
+app.get("/api/admin/check", requireAdmin, (_, response) => response.json({ ok: true }));
+app.get("/api/questions", requireAdmin, (request, response) => {
   response.json(listQuestionLibrary(
     String(request.query.search ?? "").trim(),
     String(request.query.category ?? "").trim()
@@ -84,7 +123,7 @@ app.post("/api/discord/token", async (request, response) => {
   }
 });
 
-app.post("/api/questions/preview", (request, response) => {
+app.post("/api/questions/preview", requireAdmin, (request, response) => {
   const result = libraryImportSchema.safeParse(request.body);
   if (!result.success) {
     return response.status(400).json({ ok: false, issues: result.error.issues });
@@ -101,7 +140,7 @@ app.post("/api/questions/preview", (request, response) => {
   });
 });
 
-app.post("/api/questions/import", (request, response) => {
+app.post("/api/questions/import", requireAdmin, (request, response) => {
   const result = libraryImportSchema.safeParse(request.body);
   if (!result.success) {
     return response.status(400).json({ ok: false, issues: result.error.issues });
@@ -115,7 +154,7 @@ app.post("/api/questions/import", (request, response) => {
   }
 });
 
-app.patch("/api/questions/:id", (request, response) => {
+app.patch("/api/questions/:id", requireAdmin, (request, response) => {
   if (typeof request.body.active !== "boolean") {
     return response.status(400).json({ ok: false, error: "active must be a boolean." });
   }
@@ -123,7 +162,7 @@ app.patch("/api/questions/:id", (request, response) => {
   return response.status(updated ? 200 : 404).json({ ok: updated });
 });
 
-app.delete("/api/questions/:id", (request, response) => {
+app.delete("/api/questions/:id", requireAdmin, (request, response) => {
   try {
     const deleted = deleteQuestion(Number(request.params.id));
     return response.status(deleted ? 200 : 404).json({ ok: deleted });
@@ -148,7 +187,7 @@ const upload = multer({
   fileFilter: (_, file, callback) => callback(null, /^image\/(png|jpeg|webp|gif)$/.test(file.mimetype))
 });
 
-app.post("/api/images", upload.single("image"), (request, response) => {
+app.post("/api/images", requireAdmin, upload.single("image"), (request, response) => {
   if (!request.file) return response.status(400).json({ ok: false, error: "Choose a supported image." });
   return response.status(201).json({ ok: true, path: `/uploads/${request.file.filename}` });
 });

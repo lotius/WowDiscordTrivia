@@ -68,24 +68,42 @@ export function Admin({ onClose, onImported }: { onClose: () => void; onImported
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [categories, setCategories] = useState<Array<{ name: string }>>([]);
+  const [token, setToken] = useState(localStorage.getItem("trivia-admin-token") || "");
+  const [unlocked, setUnlocked] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // The token gates every library route. It lives in localStorage rather than
+  // the bundle so players who launch the activity never receive it.
+  const authHeaders = (extra: Record<string, string> = {}) => ({ ...extra, "x-admin-token": token });
 
   async function loadLibrary() {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (category) params.set("category", category);
     const [questionsResponse, categoriesResponse] = await Promise.all([
-      fetch(apiUrl(`/api/questions?${params}`)),
+      fetch(apiUrl(`/api/questions?${params}`), { headers: authHeaders() }),
       fetch(apiUrl("/api/categories"))
     ]);
+    if (questionsResponse.status === 401 || questionsResponse.status === 503) {
+      setUnlocked(false);
+      setMessage((await questionsResponse.json()).error || "Enter the admin token to manage the library.");
+      return;
+    }
+    setUnlocked(true);
     if (questionsResponse.ok) setQuestions(await questionsResponse.json());
     if (categoriesResponse.ok) setCategories(await categoriesResponse.json());
   }
 
   useEffect(() => {
+    if (!token) return;
     const timeout = window.setTimeout(() => { loadLibrary().catch(() => undefined); }, 150);
     return () => window.clearTimeout(timeout);
-  }, [search, category]);
+  }, [search, category, token]);
+
+  function saveToken(value: string) {
+    setToken(value);
+    localStorage.setItem("trivia-admin-token", value);
+  }
 
   async function request(action: "preview" | "import") {
     try {
@@ -94,7 +112,7 @@ export function Admin({ onClose, onImported }: { onClose: () => void; onImported
         apiUrl(action === "preview" ? "/api/questions/preview" : "/api/questions/import"),
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify(body)
         }
       );
@@ -122,7 +140,7 @@ export function Admin({ onClose, onImported }: { onClose: () => void; onImported
     if (!file) return;
     const body = new FormData();
     body.append("image", file);
-    const response = await fetch(apiUrl("/api/images"), { method: "POST", body });
+    const response = await fetch(apiUrl("/api/images"), { method: "POST", body, headers: authHeaders() });
     const data = await response.json();
     if (response.ok) {
       setImagePath(data.path);
@@ -133,7 +151,7 @@ export function Admin({ onClose, onImported }: { onClose: () => void; onImported
   async function toggleQuestion(question: LibraryQuestion) {
     const response = await fetch(apiUrl(`/api/questions/${question.id}`), {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ active: !question.active })
     });
     if (response.ok) {
@@ -144,7 +162,10 @@ export function Admin({ onClose, onImported }: { onClose: () => void; onImported
 
   async function removeQuestion(question: LibraryQuestion) {
     if (!window.confirm(`Permanently delete question #${question.id}?`)) return;
-    const response = await fetch(apiUrl(`/api/questions/${question.id}`), { method: "DELETE" });
+    const response = await fetch(apiUrl(`/api/questions/${question.id}`), {
+      method: "DELETE",
+      headers: authHeaders()
+    });
     const data = await response.json();
     setMessage(response.ok ? "Question deleted." : data.error || "Delete failed.");
     if (response.ok) {
@@ -160,8 +181,26 @@ export function Admin({ onClose, onImported }: { onClose: () => void; onImported
           <span className="eyebrow">Game master tools</span>
           <h1>Question library</h1>
         </div>
-        <button className="button button--ghost" onClick={onClose}>Back to game</button>
+        <div className="admin-auth">
+          <input
+            type="password"
+            value={token}
+            onChange={(event) => saveToken(event.target.value)}
+            placeholder="Admin token"
+            aria-label="Admin token"
+          />
+          <span className={unlocked ? "auth-pill auth-pill--ok" : "auth-pill"}>
+            {unlocked ? "Unlocked" : "Locked"}
+          </span>
+          <button className="button button--ghost" onClick={onClose}>Back to game</button>
+        </div>
       </header>
+      {!unlocked && (
+        <div className="notice notice--warn">
+          The question library is protected because it exposes correct answers. Paste
+          the <code>ADMIN_TOKEN</code> from your <code>.env</code> above to unlock it.
+        </div>
+      )}
       <main className="library-admin">
         <section className="admin-grid">
           <div className="panel admin-editor">
