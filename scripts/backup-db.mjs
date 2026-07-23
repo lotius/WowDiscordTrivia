@@ -20,6 +20,14 @@ if (!fs.existsSync(source)) {
 const dir = process.env.BACKUP_DIR || "data/backups";
 fs.mkdirSync(dir, { recursive: true });
 
+// A backup contains every correct answer and every player record. This
+// repository is public, so refuse to write one somewhere git would pick it up.
+const ignore = fs.existsSync(".gitignore") ? fs.readFileSync(".gitignore", "utf8") : "";
+if (!ignore.split(/\r?\n/).some((line) => line.trim() === "data/backups/")) {
+  console.error("Refusing to write a backup: 'data/backups/' is not in .gitignore.");
+  process.exit(1);
+}
+
 // Timestamp is only a filename; the database is the state that matters.
 const now = new Date();
 const label = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);

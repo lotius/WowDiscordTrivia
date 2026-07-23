@@ -3,6 +3,9 @@ dist/
 server/dist/
 data/*.db
 data/*.db-*
+# Backups hold the full answer key and player records. This repository is
+# public; they must never be committed.
+data/backups/
 uploads/*
 !uploads/.gitkeep
 .env
