@@ -302,6 +302,13 @@ output { color: var(--gold); }
 .landing__content--centered { place-content: center; justify-items: center; }
 .rename-form { display: flex; justify-content: center; gap: 10px; margin-top: 14px; }
 .rename-form input { width: min(260px, 60vw); }
+.join-hint { margin-top: 14px; font-size: 13px; opacity: .8; }
+.connection-banner {
+  position: relative; z-index: 5; padding: 10px 16px; text-align: center;
+  background: linear-gradient(#d99a3f, #a8641f); color: #fff6de;
+  font-weight: 800; letter-spacing: .04em; text-shadow: 0 2px #6d3d13;
+  border-bottom: 3px solid #6d3d13;
+}
 .notice--warn { border-color: #7a4a1c; background: linear-gradient(#d99a3f, #a8641f); text-shadow: 0 2px #6d3d13; width: min(1160px, calc(100% - 40px)); margin: 20px auto 0; }
 .notice--warn code { padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,.28); }
 .admin-auth { display: flex; align-items: center; gap: 10px; }

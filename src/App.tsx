@@ -1,10 +1,10 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { Admin } from "./components/Admin";
 import { ImageClue } from "./components/ImageClue";
 import { PlayerRail } from "./components/PlayerRail";
 import { Timer } from "./components/Timer";
-import { initializeDiscord, type DiscordIdentity } from "./discord";
+import { initializeDiscord, type DiscordContext, type DiscordIdentity } from "./discord";
 import { apiUrl, assetUrl, isEmbedded, localPlayerKey, socketPath } from "./environment";
 import { useCountdown } from "./hooks/useCountdown";
 import type { CategorySummary, GameMode, GameSettings, RoomState } from "./types";
@@ -39,6 +39,8 @@ function App() {
   // Inside Discord the landing screen is skipped entirely, so show a connecting
   // state rather than flashing a create/join card nobody should use.
   const [connecting, setConnecting] = useState(isEmbedded);
+  const [online, setOnline] = useState(socket.connected);
+  const activity = useRef<DiscordContext | null>(null);
 
   const me = state?.players.find((player) => player.id === playerId);
   const isHost = state?.hostId === playerId;
@@ -48,9 +50,43 @@ function App() {
     if (response.ok) setCategories(await response.json());
   }
 
+  /**
+   * Joins (or rejoins) the room for this activity instance. Every failure path
+   * lands somewhere the player can retry from, because the alternative is what
+   * players actually did before: close the activity and relaunch it.
+   */
+  const joinActivity = useCallback(() => {
+    const context = activity.current;
+    if (!context?.instanceId) return;
+    setConnecting(true);
+    setError("");
+    const storedName = localStorage.getItem("trivia-name") || "";
+    // Without a deadline a lost acknowledgement leaves the player on the
+    // connecting screen indefinitely with no way forward.
+    socket.timeout(10_000).emit("room:activity", {
+      instanceId: context.instanceId,
+      name: context.identity?.name || storedName || "",
+      avatar: context.identity?.avatar,
+      playerKey: context.identity?.discordUserId || localPlayerKey()
+    }, (
+      timedOut: unknown,
+      result?: { ok: boolean; state?: RoomState; playerId?: string; error?: string }
+    ) => {
+      setConnecting(false);
+      if (timedOut) {
+        return setError("The game server did not respond. Check that it and the tunnel are still running.");
+      }
+      if (!result?.ok) return setError(result?.error || "Could not join the activity.");
+      setState(result.state!);
+      setPlayerId(result.playerId!);
+      setError("");
+    });
+  }, []);
+
   useEffect(() => {
     initializeDiscord().then((context) => {
       if (!context) return setConnecting(false);
+      activity.current = context;
       if (context.identity) {
         setIdentity(context.identity);
         setName(context.identity.name);
@@ -59,32 +95,39 @@ function App() {
       // Everyone in the voice channel shares one instance id, so there is no
       // room code to exchange. This deliberately does not depend on identity:
       // a player Discord could not identify still belongs in the same room as
-      // everyone else, just under a fallback name. Re-running on every
-      // "connect" also covers Discord suspending and resuming the iframe.
+      // everyone else, just under a fallback name.
       if (!context.instanceId) {
         setConnecting(false);
         setError("Discord did not provide an activity instance. Relaunch the activity.");
         return;
       }
-
-      const storedName = localStorage.getItem("trivia-name") || "";
-      const joinActivity = () => socket.emit("room:activity", {
-        instanceId: context.instanceId,
-        name: context.identity?.name || storedName || "",
-        avatar: context.identity?.avatar,
-        playerKey: context.identity?.discordUserId || localPlayerKey()
-      }, (result: { ok: boolean; state?: RoomState; playerId?: string; error?: string }) => {
-        setConnecting(false);
-        if (!result.ok) return setError(result.error || "Could not join the activity.");
-        setState(result.state!);
-        setPlayerId(result.playerId!);
-      });
-
-      socket.on("connect", joinActivity);
       if (socket.connected) joinActivity();
     }).catch(() => setConnecting(false));
     loadLibrary().catch(() => undefined);
-  }, []);
+  }, [joinActivity]);
+
+  // Connection lifecycle. Rejoining on every "connect" covers Discord
+  // suspending and resuming the iframe, which it does routinely.
+  useEffect(() => {
+    const onConnect = () => {
+      setOnline(true);
+      if (activity.current?.instanceId) joinActivity();
+    };
+    const onDisconnect = () => setOnline(false);
+    const onConnectError = () => {
+      setOnline(false);
+      setConnecting(false);
+      setError("Cannot reach the game server. It may have stopped, or the tunnel may have closed.");
+    };
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
+    };
+  }, [joinActivity]);
 
   useEffect(() => {
     const onState = (next: RoomState) => {
@@ -178,16 +221,32 @@ function App() {
     return <Admin onClose={() => setAdminOpen(false)} onImported={loadLibrary} />;
   }
 
-  if (connecting) {
+  // Inside Discord this covers both the initial join and any failure after it,
+  // so a stuck player always has a retry instead of relaunching the activity.
+  if (isEmbedded && !state) {
     return (
       <div className="landing">
         <div className="stars" />
         <main className="landing__content landing__content--centered">
           <section className="join-card">
             <div className="join-card__rune">✦</div>
-            <h2>Joining your party</h2>
-            <p>Connecting to the voice channel's game…</p>
-            {error && <div className="form-error">{error}</div>}
+            {connecting ? (
+              <>
+                <h2>Joining your party</h2>
+                <p>Connecting to the voice channel's game…</p>
+              </>
+            ) : (
+              <>
+                <h2>Could not join</h2>
+                <p>{error || "Something went wrong reaching the game."}</p>
+                <button className="button button--primary button--full" onClick={joinActivity}>
+                  Try again
+                </button>
+                <p className="join-hint">
+                  Everyone in this voice channel lands in the same game — there is no code to share.
+                </p>
+              </>
+            )}
           </section>
         </main>
       </div>
@@ -277,6 +336,11 @@ function App() {
 
   return (
     <div className="game-shell">
+      {!online && (
+        <div className="connection-banner">
+          Connection lost — reconnecting. Your score is safe.
+        </div>
+      )}
       <header className="game-header">
         <div className="brand"><span>AA</span> Azeroth Arcade</div>
         <div className="room-badge">Room <strong>{state.code}</strong></div>
