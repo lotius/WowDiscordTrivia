@@ -131,5 +131,8 @@ function New-Cover {
   Write-Output ("Wrote {0} ({1}x{2}, {3} KB)" -f $Path, $Width, $Height, $kb)
 }
 
+# 1024x576 is the exact size the portal asks for on the Rich Presence invite
+# image. The others cover slots that want a larger or square asset.
+New-Cover -Width 1024 -Height 576  -Path (Join-Path $outDir "cover-1024x576.png") -WithText $true
 New-Cover -Width 1920 -Height 1080 -Path (Join-Path $outDir "cover-wide.png") -WithText $true
 New-Cover -Width 1024 -Height 1024 -Path (Join-Path $outDir "cover-square.png") -WithText $false
