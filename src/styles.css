@@ -1,4 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700;800;900&display=swap");
+/* Fonts are bundled from node_modules by main.tsx rather than fetched from
+   Google. Discord's activity iframe blocks unproxied external requests, so a
+   remote stylesheet never loads there and the game falls back to system fonts.
+   Self-hosting also means the app has no runtime dependency on a third party. */
 
 :root {
   font-family: "Nunito", system-ui, sans-serif;

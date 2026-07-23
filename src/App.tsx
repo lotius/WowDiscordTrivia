@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { Admin } from "./components/Admin";
+import { Avatar } from "./components/Avatar";
 import { ImageClue } from "./components/ImageClue";
 import { PlayerRail } from "./components/PlayerRail";
 import { Timer } from "./components/Timer";
@@ -661,7 +662,7 @@ function Scoreboard({ state, isHost, onNext }: { state: RoomState; isHost: boole
         {ranked.map((player, index) => (
           <div className="score-row" key={player.id}>
             <span className="rank">{index + 1}</span>
-            <div className="avatar">{player.avatar ? <img src={player.avatar} alt="" /> : player.name[0]}</div>
+            <div className="avatar"><Avatar name={player.name} src={player.avatar} /></div>
             <strong>{player.name}</strong>
             {player.lastAward > 0 && <span className="award">+{player.lastAward}</span>}
             <b>{player.score.toLocaleString()}</b>
@@ -685,7 +686,7 @@ function FinalResults({ state, isHost, onRestart }: { state: RoomState; isHost: 
       <div className="confetti">✦ · ✧ · ✦</div>
       <span className="eyebrow">The adventure is complete</span>
       <h1>{winner.name} wins!</h1>
-      <div className="winner-avatar"><span>♛</span>{winner.avatar ? <img src={winner.avatar} alt="" /> : winner.name[0]}</div>
+      <div className="winner-avatar"><span>♛</span><Avatar name={winner.name} src={winner.avatar} /></div>
       <strong className="winner-score">{winner.score.toLocaleString()} points</strong>
       <div className="podium">
         {ranked.slice(0, 3).map((player, index) => <div key={player.id} className={`podium__place podium__place--${index + 1}`}><span>#{index + 1}</span><strong>{player.name}</strong><small>{player.score.toLocaleString()}</small></div>)}

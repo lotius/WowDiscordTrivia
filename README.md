@@ -47,6 +47,8 @@ See [docs/QUESTION_AUTHORING.md](docs/QUESTION_AUTHORING.md) for the complete qu
 
 [docs/ROADMAP.md](docs/ROADMAP.md) tracks the work needed to run this permanently, open it to a whole server, and build out image questions.
 
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) covers running it without depending on third parties, and what the irreducible dependencies actually are. Fonts are bundled rather than fetched from a CDN, and `docker compose up -d --build` runs the whole thing anywhere Docker runs.
+
 ## Architecture
 
 - The backend owns all game states, timers, answer validation, elimination scheduling, and scoring.

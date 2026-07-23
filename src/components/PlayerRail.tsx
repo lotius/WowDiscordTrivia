@@ -1,4 +1,5 @@
 import type { Player } from "../types";
+import { Avatar } from "./Avatar";
 
 export function PlayerRail({ players, phase }: { players: Player[]; phase: string }) {
   return (
@@ -11,7 +12,7 @@ export function PlayerRail({ players, phase }: { players: Player[]; phase: strin
         {[...players].sort((a, b) => b.score - a.score).map((player, index) => (
           <div className={`player-chip ${!player.connected ? "is-offline" : ""}`} key={player.id}>
             <div className="avatar">
-              {player.avatar ? <img src={player.avatar} alt="" /> : player.name.slice(0, 1).toUpperCase()}
+              <Avatar name={player.name} src={player.avatar} />
               {phase === "final" && index === 0 && <span className="crown">♛</span>}
             </div>
             <div className="player-chip__copy">

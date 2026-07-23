@@ -1,0 +1,22 @@
+# docker compose up -d --build
+#
+# Named volumes keep the question library and uploaded images outside the
+# container, so rebuilding or replacing it does not destroy them.
+
+services:
+  arcade:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      PORT: 3001
+    volumes:
+      - arcade-data:/app/data
+      - arcade-uploads:/app/uploads
+
+volumes:
+  arcade-data:
+  arcade-uploads:
