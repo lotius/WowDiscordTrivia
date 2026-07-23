@@ -43,6 +43,10 @@ Image questions can reference multiple public URLs or uploaded paths. One image 
 
 See [docs/QUESTION_AUTHORING.md](docs/QUESTION_AUTHORING.md) for the complete question creation, image upload, validation, import, editing, and troubleshooting guide.
 
+`npm run stats` reports library totals, image coverage, broken image paths, and categories too thin to generate good distractors. Prefer it over the admin panel's counts, which cap at 500 rows.
+
+[docs/ROADMAP.md](docs/ROADMAP.md) tracks the work needed to run this permanently, open it to a whole server, and build out image questions.
+
 ## Architecture
 
 - The backend owns all game states, timers, answer validation, elimination scheduling, and scoring.

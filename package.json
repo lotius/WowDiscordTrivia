@@ -9,6 +9,7 @@
     "dev:client": "vite",
     "build": "tsc -p server/tsconfig.json && vite build",
     "start": "node server/dist/index.js",
+    "stats": "node scripts/library-stats.mjs",
     "smoke": "node scripts/smoke.mjs",
     "smoke:activity": "node scripts/smoke-activity.mjs",
     "tunnel": "node scripts/tunnel.mjs",
