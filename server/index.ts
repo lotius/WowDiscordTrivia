@@ -21,10 +21,33 @@ fs.mkdirSync(uploads, { recursive: true });
 
 const app = express();
 const server = http.createServer(app);
-const origin = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
-const io = new Server(server, { cors: { origin, credentials: true } });
 
-app.use(cors({ origin, credentials: true }));
+const configuredOrigins = (process.env.CLIENT_ORIGIN ?? "http://localhost:5173")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+// Discord serves an Activity from <application_id>.discordsays.com. The exact
+// subdomain varies per application, so match the family instead of pinning one.
+function isAllowedOrigin(candidate?: string) {
+  if (!candidate) return true;
+  if (configuredOrigins.includes(candidate)) return true;
+  try {
+    return new URL(candidate).hostname.endsWith(".discordsays.com");
+  } catch {
+    return false;
+  }
+}
+
+const corsOptions = {
+  origin: (candidate: string | undefined, callback: (error: null, allow: boolean) => void) =>
+    callback(null, isAllowedOrigin(candidate)),
+  credentials: true
+};
+
+const io = new Server(server, { cors: corsOptions });
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: "5mb" }));
 app.use("/uploads", express.static(uploads));
 

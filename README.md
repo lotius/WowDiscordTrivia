@@ -15,12 +15,14 @@ The starter database and sample global questions are created automatically in `d
 
 ## Discord Activity setup
 
-1. Copy `.env.example` to `.env`.
-2. Set `VITE_DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`.
-3. Configure the Discord developer portal Activity URL mapping to your public HTTPS tunnel or deployment.
-4. Set `CLIENT_ORIGIN` to the client origin when the server and client are served separately.
+1. Copy `.env.example` to `.env`, then set `VITE_DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`. Leave `VITE_SERVER_URL` empty.
+2. `npm run discord` builds the client and serves it with the API on one origin at port 3001.
+3. `npm run tunnel` exposes that port over public HTTPS via `cloudflared`.
+4. Map `/` to the tunnel hostname under Activities → URL Mappings in the Discord developer portal.
 
-The app detects whether it is running inside Discord. Outside Discord it automatically uses standalone mode.
+The app detects whether it is running inside Discord and prefixes its requests with `/.proxy` when it is, because Discord routes all activity traffic through its own proxy. Outside Discord the prefix is empty and standalone mode is used automatically.
+
+See [docs/DISCORD_ACTIVITY.md](docs/DISCORD_ACTIVITY.md) for the full walkthrough and troubleshooting.
 
 ## Global question library
 

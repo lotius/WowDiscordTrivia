@@ -1,4 +1,5 @@
 import { DiscordSDK } from "@discord/embedded-app-sdk";
+import { apiUrl, isEmbedded } from "./environment";
 
 export interface DiscordIdentity {
   name: string;
@@ -8,13 +9,13 @@ export interface DiscordIdentity {
 
 export async function initializeDiscord(): Promise<DiscordIdentity | null> {
   const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
-  if (!clientId || window.self === window.top) return null;
+  if (!clientId || !isEmbedded) return null;
 
   try {
     const sdk = new DiscordSDK(clientId);
     await sdk.ready();
 
-    const response = await fetch("/api/discord/token", {
+    const response = await fetch(apiUrl("/api/discord/token"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: (await sdk.commands.authorize({

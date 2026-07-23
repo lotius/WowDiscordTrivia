@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { apiUrl } from "../environment";
 
 const example = `{
   "source": "Dungeon questions batch 1",
@@ -74,8 +75,8 @@ export function Admin({ onClose, onImported }: { onClose: () => void; onImported
     if (search) params.set("search", search);
     if (category) params.set("category", category);
     const [questionsResponse, categoriesResponse] = await Promise.all([
-      fetch(`/api/questions?${params}`),
-      fetch("/api/categories")
+      fetch(apiUrl(`/api/questions?${params}`)),
+      fetch(apiUrl("/api/categories"))
     ]);
     if (questionsResponse.ok) setQuestions(await questionsResponse.json());
     if (categoriesResponse.ok) setCategories(await categoriesResponse.json());
@@ -90,7 +91,7 @@ export function Admin({ onClose, onImported }: { onClose: () => void; onImported
     try {
       const body = JSON.parse(json);
       const response = await fetch(
-        action === "preview" ? "/api/questions/preview" : "/api/questions/import",
+        apiUrl(action === "preview" ? "/api/questions/preview" : "/api/questions/import"),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -121,7 +122,7 @@ export function Admin({ onClose, onImported }: { onClose: () => void; onImported
     if (!file) return;
     const body = new FormData();
     body.append("image", file);
-    const response = await fetch("/api/images", { method: "POST", body });
+    const response = await fetch(apiUrl("/api/images"), { method: "POST", body });
     const data = await response.json();
     if (response.ok) {
       setImagePath(data.path);
@@ -130,7 +131,7 @@ export function Admin({ onClose, onImported }: { onClose: () => void; onImported
   }
 
   async function toggleQuestion(question: LibraryQuestion) {
-    const response = await fetch(`/api/questions/${question.id}`, {
+    const response = await fetch(apiUrl(`/api/questions/${question.id}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !question.active })
@@ -143,7 +144,7 @@ export function Admin({ onClose, onImported }: { onClose: () => void; onImported
 
   async function removeQuestion(question: LibraryQuestion) {
     if (!window.confirm(`Permanently delete question #${question.id}?`)) return;
-    const response = await fetch(`/api/questions/${question.id}`, { method: "DELETE" });
+    const response = await fetch(apiUrl(`/api/questions/${question.id}`), { method: "DELETE" });
     const data = await response.json();
     setMessage(response.ok ? "Question deleted." : data.error || "Delete failed.");
     if (response.ok) {

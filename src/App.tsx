@@ -5,11 +5,17 @@ import { ImageClue } from "./components/ImageClue";
 import { PlayerRail } from "./components/PlayerRail";
 import { Timer } from "./components/Timer";
 import { initializeDiscord, type DiscordIdentity } from "./discord";
+import { apiUrl, assetUrl, isEmbedded, socketPath } from "./environment";
 import { useCountdown } from "./hooks/useCountdown";
 import type { CategorySummary, GameMode, GameSettings, RoomState } from "./types";
 
-const serverUrl = import.meta.env.VITE_SERVER_URL || window.location.origin;
-const socket = io(serverUrl, { autoConnect: true });
+// Inside Discord the activity and the server share one origin through the
+// proxy, so VITE_SERVER_URL must be ignored — a baked-in localhost would be
+// unreachable from the iframe.
+const serverUrl = isEmbedded
+  ? window.location.origin
+  : import.meta.env.VITE_SERVER_URL || window.location.origin;
+const socket = io(serverUrl, { autoConnect: true, path: socketPath });
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
 
 const modeCopy: Record<GameMode, { title: string; icon: string; description: string }> = {
@@ -35,7 +41,7 @@ function App() {
   const isHost = state?.hostId === playerId;
 
   async function loadLibrary() {
-    const response = await fetch("/api/categories");
+    const response = await fetch(apiUrl("/api/categories"));
     if (response.ok) setCategories(await response.json());
   }
 
@@ -67,7 +73,7 @@ function App() {
       : [];
     images.forEach((source) => {
       const image = new Image();
-      image.src = source;
+      image.src = assetUrl(source);
     });
   }, [state?.question?.id, state?.question?.image, state?.question?.type]);
 
