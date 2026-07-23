@@ -11,7 +11,7 @@
     "start": "node server/dist/index.js",
     "smoke": "node scripts/smoke.mjs",
     "smoke:activity": "node scripts/smoke-activity.mjs",
-    "tunnel": "cloudflared tunnel --url http://localhost:3001",
+    "tunnel": "node scripts/tunnel.mjs",
     "discord": "npm run build && npm start",
     "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit"
   },
