@@ -81,6 +81,25 @@ screen that looks exactly like a broken app. Prefer a reserved hostname:
 `npm run tunnel` picks the mode from `.env`. `npm run tunnel:url` reports the
 hostname of a running quick tunnel.
 
+## Running it consistently on one machine
+
+```bash
+npm run serve
+```
+
+One supervised process that builds, then runs the server and the tunnel
+together. It restarts either if it crashes, with backoff so a process that
+cannot start does not spin. It health-checks the server rather than assuming a
+running process is a working one, and it watches the public hostname, printing a
+banner when it changes — the failure that otherwise shows up as a blank white
+screen in Discord with no explanation.
+
+The current hostname is also written to `.tunnel-url.txt`.
+
+This does not survive a reboot on its own. To start it automatically, create a
+shortcut to `npm run serve` in the Windows startup folder (`shell:startup`), or
+register it as a scheduled task set to run at logon.
+
 ## Running with Docker
 
 ```bash

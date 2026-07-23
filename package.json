@@ -15,6 +15,7 @@
     "smoke:controls": "node scripts/smoke-controls.mjs",
     "tunnel": "node scripts/tunnel.mjs",
     "tunnel:url": "node scripts/tunnel-url.mjs",
+    "serve": "npm run build && node scripts/serve.mjs",
     "discord": "npm run build && npm start",
     "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit"
   },

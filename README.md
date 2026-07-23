@@ -9,6 +9,14 @@ npm install
 npm run dev
 ```
 
+To run it the way players use it — built, served, and publicly reachable — use one supervised command instead:
+
+```bash
+npm run serve
+```
+
+That builds, starts the server and the tunnel together, restarts either one if it crashes, health-checks the server, and prints a banner whenever the public hostname changes so a stale Discord URL mapping is obvious rather than silent. Ctrl+C stops everything.
+
 Open `http://localhost:5173`. Create a room in one browser and join its code from another browser or private window.
 
 The starter database and sample global questions are created automatically in `data/trivia.db`.
