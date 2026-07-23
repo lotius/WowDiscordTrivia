@@ -194,8 +194,30 @@ app.post("/api/images", requireAdmin, upload.single("image"), (request, response
 
 const clientDist = path.join(root, "dist");
 if (fs.existsSync(clientDist)) {
-  app.use(express.static(clientDist));
-  app.use((_, response) => response.sendFile(path.join(clientDist, "index.html")));
+  app.use(express.static(clientDist, {
+    setHeaders: (response, filePath) => {
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        // Vite fingerprints these filenames, so a given URL's bytes never change.
+        response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else {
+        // The entry document must never be cached. Discord caches aggressively,
+        // and a stale index.html points at a bundle a rebuild has replaced.
+        response.setHeader("Cache-Control", "no-store");
+      }
+    }
+  }));
+
+  app.use((request, response) => {
+    // Only extensionless paths are client-side routes. Without this check a
+    // request for a missing asset falls through to index.html and is served as
+    // HTML with a 200; the browser then tries to execute markup as JavaScript
+    // and the activity renders a blank white screen with no useful error.
+    if (path.extname(request.path)) {
+      return response.status(404).json({ ok: false, error: "Not found." });
+    }
+    response.setHeader("Cache-Control", "no-store");
+    return response.sendFile(path.join(clientDist, "index.html"));
+  });
 }
 
 installGameEngine(io);
