@@ -38,14 +38,28 @@ trust.
 
 **Known broken**
 
-- The single image question points at `/uploads/deadmines-entrance.jpg` and
-  `/uploads/deadmines-ship.jpg`. **Neither file exists** — `uploads/` is empty.
-  It is the example from the admin panel's JSON template, imported for real. It
-  will render broken images if it is ever drawn.
-- Five categories have one or two questions each: Geography, Science, Video
-  Games, Fantasy, World of Warcraft. Multiple-choice distractors are generated
-  from other answers in the same category, so these cannot fill four options
-  honestly.
+- Question 8, the only image question, points at
+  `/uploads/deadmines-entrance.jpg` and `/uploads/deadmines-ship.jpg`. Neither
+  file exists — it is the example from the admin panel's JSON template,
+  imported for real. **Disabled on 2026-07-23** so it cannot be drawn, and the
+  engine now refuses to serve image questions whose files are missing. Re-enable
+  it once the two images are uploaded.
+
+**Corrected after measuring**
+
+An earlier draft claimed the five near-empty categories (Geography, Science,
+Video Games, Fantasy, World of Warcraft) could not fill four choices. That was
+wrong. Each of their questions carries three manual distractors, which is
+exactly what `buildChoices` needs, and no active text question in the library
+falls short:
+
+```
+questions that cannot offer 4 choices: none
+```
+
+They are still odd as categories — one question each, and off-theme for a
+Warcraft trivia game — but they are not broken, and removing them would remove
+working content.
 
 ---
 
@@ -64,8 +78,10 @@ restart, which has already broken the Activity once.
       question library.
 - [ ] A stable HTTPS hostname, set once in the Discord URL mapping.
 - [ ] Auto-restart on crash and on boot.
-- [ ] Backups of `data/trivia.db`. 508 hand-made questions is the most valuable
-      thing in this project and it currently exists in exactly one place.
+- [x] Backups of `data/trivia.db`. `npm run backup` writes a timestamped
+      snapshot to `data/backups/` using SQLite's online backup, which is safe to
+      run mid-game — a plain file copy during a write can capture a torn
+      database. Still needs scheduling so it happens without being remembered.
 
 **Options**
 
@@ -142,8 +158,11 @@ discovering it later.
 
 **Then the pipeline**
 
-- [ ] Fix or delete the broken Deadmines question so nothing renders a broken
-      image mid-game. `npm run stats` reports broken paths.
+- [x] Stop broken images reaching players. Question 8 is disabled, unservable
+      images are filtered during hydration, image questions with no usable image
+      are excluded from selection, and imports referencing missing files are
+      refused. `npm run stats` still reports the broken paths so they are not
+      forgotten; `npm run smoke:images` guards the behaviour.
 - [ ] Gather a first batch — 20-30 images is enough to tell whether image rounds
       are fun before investing further.
 - [ ] Decide sizing and format. Uploads cap at 8 MB and accept PNG, JPEG, WebP,
@@ -171,9 +190,10 @@ discovering it later.
 
 Cheap fixes, real effect on how the game feels.
 
-- [ ] Merge or delete the five near-empty categories (Geography, Science, Video
-      Games, Fantasy, World of Warcraft). They look like test data. With one
-      question each they cannot generate four plausible choices.
+- [ ] Decide what to do with the five near-empty categories (Geography, Science,
+      Video Games, Fantasy, World of Warcraft). They play fine — see the
+      correction above — but they are off-theme and clutter the category filter.
+      Merging beats deleting, since the questions themselves work.
 - [ ] Rebalance difficulty. Easy is 11% of the library, medium is 63%. A game
       filtered to easy has 56 questions to draw on and will repeat quickly.
 - [ ] Consider a "no repeats within a session" rule. `chooseQuestions` uses
