@@ -64,12 +64,38 @@ In a second terminal:
 npm run tunnel
 ```
 
-`cloudflared` prints a URL like `https://random-words-here.trycloudflare.com`.
-Copy the hostname.
+`npm run tunnel:url` prints the hostname of a running quick tunnel if you lose
+it in the log.
 
-Quick tunnels are anonymous and free but **the URL changes every restart**. Each
-restart means updating the URL mapping in step 5. A named Cloudflare tunnel on a
-domain you own gives a stable URL if this stops being fun.
+### Get a hostname that stops changing
+
+Quick tunnels are anonymous and free, but **the hostname changes on every
+restart**, and cloudflared restarts on its own. Every change means re-pasting
+the mapping in step 5, and until you do, the activity shows a blank white screen
+that looks exactly like a broken app. This is the single largest source of
+friction in running this thing.
+
+Either option below fixes it permanently — the tunnel can restart as much as it
+likes and the hostname stays valid, so the mapping is set once.
+
+**ngrok static domain** (free, no domain purchase):
+
+1. `winget install -e --id Ngrok.Ngrok`
+2. Create a free account at <https://dashboard.ngrok.com>
+3. `ngrok config add-authtoken <your token>` — the token is yours to enter
+4. Reserve a domain under **Domains** in the dashboard; the free plan allows one
+5. Put it in `.env` as `NGROK_DOMAIN=your-name.ngrok-free.app`
+
+`npm run tunnel` then uses ngrok automatically.
+
+Note: ngrok's free tier can show a browser interstitial on `ngrok-free.app`
+domains, which would break the Discord iframe. Whether it triggers depends on
+what Discord's proxy sends. Test it before relying on it.
+
+**cloudflared named tunnel** (needs a domain in your Cloudflare account):
+
+Set `TUNNEL_NAME` and `TUNNEL_HOSTNAME` in `.env`. No interstitial, and the
+hostname is one you own.
 
 ## 5. Point Discord at the tunnel
 
