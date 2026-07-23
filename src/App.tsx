@@ -40,7 +40,11 @@ function App() {
   // state rather than flashing a create/join card nobody should use.
   const [connecting, setConnecting] = useState(isEmbedded);
   const [online, setOnline] = useState(socket.connected);
+  const [left, setLeft] = useState(false);
   const activity = useRef<DiscordContext | null>(null);
+  // Auto-rejoin fires on every reconnect, which would drag a player straight
+  // back into a game they chose to leave.
+  const deliberatelyLeft = useRef(false);
 
   const me = state?.players.find((player) => player.id === playerId);
   const isHost = state?.hostId === playerId;
@@ -57,7 +61,7 @@ function App() {
    */
   const joinActivity = useCallback(() => {
     const context = activity.current;
-    if (!context?.instanceId) return;
+    if (!context?.instanceId || deliberatelyLeft.current) return;
     setConnecting(true);
     setError("");
     const storedName = localStorage.getItem("trivia-name") || "";
@@ -187,6 +191,34 @@ function App() {
     });
   }
 
+  function leaveRoom() {
+    deliberatelyLeft.current = true;
+    socket.emit("room:leave", null, () => {
+      setState(null);
+      setPlayerId("");
+      setSelectedAnswer("");
+      setTypedAnswer("");
+      setError("");
+      setLeft(true);
+      setConnecting(false);
+    });
+  }
+
+  function rejoinRoom() {
+    deliberatelyLeft.current = false;
+    setLeft(false);
+    if (isEmbedded) return joinActivity();
+    setConnecting(false);
+  }
+
+  /** Host only: abandon the current game and return everyone to the lobby. */
+  function endGame() {
+    if (!window.confirm("End this game for everyone and return to the lobby?")) return;
+    socket.emit("game:restart", null, (result: { ok: boolean; error?: string }) => {
+      if (!result?.ok) setError(result?.error || "Could not end the game.");
+    });
+  }
+
   function renamePlayer(next: string) {
     const trimmed = next.trim().slice(0, 24);
     if (!trimmed) return;
@@ -230,7 +262,18 @@ function App() {
         <main className="landing__content landing__content--centered">
           <section className="join-card">
             <div className="join-card__rune">✦</div>
-            {connecting ? (
+            {left ? (
+              <>
+                <h2>You left the game</h2>
+                <p>
+                  Everyone in this voice channel shares one game, so rejoining puts
+                  you back with the same party. You will start from zero points.
+                </p>
+                <button className="button button--primary button--full" onClick={rejoinRoom}>
+                  Rejoin the game
+                </button>
+              </>
+            ) : connecting ? (
               <>
                 <h2>Joining your party</h2>
                 <p>Connecting to the voice channel's game…</p>
@@ -343,7 +386,13 @@ function App() {
       )}
       <header className="game-header">
         <div className="brand"><span>AA</span> Azeroth Arcade</div>
-        <div className="room-badge">Room <strong>{state.code}</strong></div>
+        <div className="header-actions">
+          <div className="room-badge">Room <strong>{state.code}</strong></div>
+          {isHost && !["lobby", "settings"].includes(state.phase) && (
+            <button className="button button--ghost" onClick={endGame}>End game</button>
+          )}
+          <button className="button button--ghost" onClick={leaveRoom}>Leave</button>
+        </div>
       </header>
       <div className="game-layout">
         <PlayerRail players={state.players} phase={state.phase} />

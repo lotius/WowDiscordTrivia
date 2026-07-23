@@ -12,6 +12,7 @@
     "stats": "node scripts/library-stats.mjs",
     "smoke": "node scripts/smoke.mjs",
     "smoke:activity": "node scripts/smoke-activity.mjs",
+    "smoke:controls": "node scripts/smoke-controls.mjs",
     "tunnel": "node scripts/tunnel.mjs",
     "tunnel:url": "node scripts/tunnel-url.mjs",
     "discord": "npm run build && npm start",

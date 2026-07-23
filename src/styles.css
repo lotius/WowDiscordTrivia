@@ -303,6 +303,8 @@ output { color: var(--gold); }
 .rename-form { display: flex; justify-content: center; gap: 10px; margin-top: 14px; }
 .rename-form input { width: min(260px, 60vw); }
 .join-hint { margin-top: 14px; font-size: 13px; opacity: .8; }
+.header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.header-actions .button { padding: 9px 16px; font-size: 12px; }
 .connection-banner {
   position: relative; z-index: 5; padding: 10px 16px; text-align: center;
   background: linear-gradient(#d99a3f, #a8641f); color: #fff6de;

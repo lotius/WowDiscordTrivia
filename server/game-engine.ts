@@ -560,21 +560,77 @@ export function installGameEngine(io: Server) {
       callback?.({ ok: true });
     });
 
+    /**
+     * Returns the room to the lobby from any phase, so the host can abandon a
+     * game that is going badly instead of waiting out every remaining round.
+     * Also serves as "play again" from the final screen.
+     */
     socket.on("game:restart", (_, callback) => {
       const room = rooms.get(socketRooms.get(socket.id) ?? "");
-      if (!room || room.state.hostId !== socket.id) return callback?.({ ok: false });
+      if (!room || room.state.hostId !== socket.id) {
+        return callback?.({ ok: false, error: "Only the host can end the game." });
+      }
       clearTimers(room);
+      // Close the session out rather than leaving it open forever in history.
+      if (room.sessionId && room.state.phase !== "lobby" && room.state.phase !== "settings") {
+        finishSession(room.sessionId);
+      }
+      room.sessionId = undefined;
+      room.roundId = undefined;
+      room.answers.clear();
       room.state.phase = "lobby";
       room.state.roundIndex = 0;
       room.state.question = undefined;
       room.state.reveal = undefined;
+      room.state.deadline = undefined;
       room.state.transitionDeadline = undefined;
+      room.state.eliminatedAnswers = [];
       room.state.players.forEach((player) => {
         player.score = 0;
         player.streak = 0;
         player.hasAnswered = false;
+        player.lastAward = 0;
       });
       emitState(io, room);
+      callback?.({ ok: true });
+    });
+
+    /**
+     * Deliberately leaving, as opposed to dropping. A disconnect keeps the
+     * player so they can return with their score; this removes them outright.
+     */
+    socket.on("room:leave", (_, callback) => {
+      const room = rooms.get(socketRooms.get(socket.id) ?? "");
+      socketRooms.delete(socket.id);
+      if (!room) return callback?.({ ok: true });
+
+      room.state.players = room.state.players.filter((player) => player.id !== socket.id);
+      room.answers.delete(socket.id);
+      socket.leave(room.state.code);
+
+      if (room.state.hostId === socket.id) {
+        const nextHost = room.state.players.find((player) => player.connected);
+        if (nextHost) {
+          nextHost.isHost = true;
+          room.state.hostId = nextHost.id;
+        }
+      }
+
+      if (!room.state.players.some((player) => player.connected)) {
+        clearTimers(room);
+        scheduleReap(room);
+      } else {
+        // The player who left may have been the one everyone was waiting on.
+        const active = room.state.players.filter((player) => player.connected);
+        if (
+          ["question", "answering"].includes(room.state.phase) &&
+          active.length && active.every((player) => player.hasAnswered)
+        ) {
+          if (room.transitionTimer) clearTimeout(room.transitionTimer);
+          room.transitionTimer = setTimeout(() => reveal(io, room), 500);
+        }
+        emitState(io, room);
+      }
       callback?.({ ok: true });
     });
 
