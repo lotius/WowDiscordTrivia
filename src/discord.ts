@@ -5,6 +5,8 @@ export interface DiscordIdentity {
   name: string;
   avatar?: string;
   discordUserId?: string;
+  /** Shared by everyone who launched the activity in the same voice channel. */
+  instanceId?: string;
 }
 
 export async function initializeDiscord(): Promise<DiscordIdentity | null> {
@@ -36,7 +38,8 @@ export async function initializeDiscord(): Promise<DiscordIdentity | null> {
     return {
       name: auth.user.global_name || auth.user.username,
       avatar,
-      discordUserId: auth.user.id
+      discordUserId: auth.user.id,
+      instanceId: sdk.instanceId
     };
   } catch (error) {
     console.warn("Discord SDK unavailable; using standalone mode.", error);

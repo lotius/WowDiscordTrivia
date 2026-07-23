@@ -29,7 +29,17 @@ interface Room {
   eliminationTimers: NodeJS.Timeout[];
   sessionId?: number;
   roundId?: number;
+  /** Set when the room is bound to a Discord activity instance. */
+  instanceId?: string;
+  reapTimer?: NodeJS.Timeout;
 }
+
+/**
+ * How long an empty room survives before it is discarded. Discord suspends
+ * activity iframes aggressively, so a room that vanished the instant the last
+ * socket dropped would lose everyone's scores during an ordinary reconnect.
+ */
+const EMPTY_ROOM_GRACE_MS = 120_000;
 
 const defaultSettings: GameSettings = {
   mode: "standard",
@@ -49,6 +59,27 @@ const defaultSettings: GameSettings = {
 
 const rooms = new Map<string, Room>();
 const socketRooms = new Map<string, string>();
+/** Discord activity instance id -> room code, so one voice channel is one room. */
+const instanceRooms = new Map<string, string>();
+
+function discardRoom(room: Room) {
+  clearTimers(room);
+  if (room.reapTimer) clearTimeout(room.reapTimer);
+  rooms.delete(room.state.code);
+  if (room.instanceId) instanceRooms.delete(room.instanceId);
+}
+
+function cancelReap(room: Room) {
+  if (room.reapTimer) {
+    clearTimeout(room.reapTimer);
+    room.reapTimer = undefined;
+  }
+}
+
+function scheduleReap(room: Room) {
+  cancelReap(room);
+  room.reapTimer = setTimeout(() => discardRoom(room), EMPTY_ROOM_GRACE_MS);
+}
 
 function roomCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -294,13 +325,18 @@ function nextRound(io: Server, room: Room) {
   startQuestion(io, room);
 }
 
-function playerFromSocket(socket: Socket, payload: { name?: string; avatar?: string }, isHost: boolean): Player {
+function playerFromSocket(
+  socket: Socket,
+  payload: { name?: string; avatar?: string; discordUserId?: string },
+  isHost: boolean
+): Player {
   const name = payload.name?.trim().slice(0, 24) || `Player ${socket.id.slice(0, 4)}`;
   upsertPlayer(socket.id, name, payload.avatar);
   return {
     id: socket.id,
     name,
     avatar: payload.avatar,
+    discordUserId: payload.discordUserId,
     score: 0,
     streak: 0,
     connected: true,
@@ -336,6 +372,76 @@ export function installGameEngine(io: Server) {
       socketRooms.set(socket.id, code);
       callback?.({ ok: true, state: publicState(room), playerId: socket.id });
       emitState(io, room);
+    });
+
+    /**
+     * Everyone who launches the activity in the same voice channel receives the
+     * same Discord instance id, so the room is derived from it instead of a
+     * shared code. First arrival hosts; later arrivals join, including mid-game.
+     * A player returning after a refresh or suspend is matched on their Discord
+     * user id and keeps their score rather than arriving as a stranger.
+     */
+    socket.on("room:activity", (
+      payload: { instanceId?: string; name?: string; avatar?: string; discordUserId?: string },
+      callback
+    ) => {
+      const instanceId = String(payload?.instanceId ?? "").trim();
+      if (!instanceId) return callback?.({ ok: false, error: "Missing activity instance." });
+
+      const existing = rooms.get(instanceRooms.get(instanceId) ?? "");
+      if (!existing) {
+        let code = roomCode();
+        while (rooms.has(code)) code = roomCode();
+        const host = playerFromSocket(socket, payload ?? {}, true);
+        const room: Room = {
+          state: {
+            code,
+            phase: "lobby",
+            hostId: socket.id,
+            players: [host],
+            settings: { ...defaultSettings },
+            roundIndex: 0,
+            totalRounds: defaultSettings.rounds,
+            eliminatedAnswers: []
+          },
+          questions: [],
+          answers: new Map(),
+          eliminationTimers: [],
+          instanceId
+        };
+        rooms.set(code, room);
+        instanceRooms.set(instanceId, code);
+        socket.join(code);
+        socketRooms.set(socket.id, code);
+        callback?.({ ok: true, state: publicState(room), playerId: socket.id });
+        return emitState(io, room);
+      }
+
+      cancelReap(existing);
+      const returning = payload.discordUserId
+        ? existing.state.players.find((player) => player.discordUserId === payload.discordUserId)
+        : undefined;
+
+      if (returning) {
+        const previousId = returning.id;
+        returning.id = socket.id;
+        returning.connected = true;
+        if (payload.name) returning.name = payload.name.trim().slice(0, 24) || returning.name;
+        if (existing.state.hostId === previousId) existing.state.hostId = socket.id;
+        const pending = existing.answers.get(previousId);
+        if (pending) {
+          existing.answers.delete(previousId);
+          existing.answers.set(socket.id, pending);
+        }
+        socketRooms.delete(previousId);
+      } else {
+        existing.state.players.push(playerFromSocket(socket, payload, false));
+      }
+
+      socket.join(existing.state.code);
+      socketRooms.set(socket.id, existing.state.code);
+      callback?.({ ok: true, state: publicState(existing), playerId: socket.id });
+      emitState(io, existing);
     });
 
     socket.on("room:join", (payload: { code: string; name?: string; avatar?: string }, callback) => {
@@ -473,8 +579,10 @@ export function installGameEngine(io: Server) {
         }
       }
       if (!room.state.players.some((candidate) => candidate.connected)) {
+        // Hold the room briefly so a suspended or refreshed client can return
+        // to it with scores intact instead of finding it gone.
         clearTimers(room);
-        rooms.delete(room.state.code);
+        scheduleReap(room);
       } else {
         emitState(io, room);
       }

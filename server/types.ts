@@ -47,6 +47,8 @@ export interface Player {
   id: string;
   name: string;
   avatar?: string;
+  /** Stable across reconnects, unlike the socket id used as `id`. */
+  discordUserId?: string;
   score: number;
   streak: number;
   connected: boolean;

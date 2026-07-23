@@ -92,6 +92,36 @@ developer portal or the tunnel URL.
 While the app is unpublished, Discord restricts who can launch it. If friends
 cannot see it, add them under the application's testers/team list in the portal.
 
+## How joining works inside Discord
+
+There are no room codes in Discord. Everyone who launches the activity in a
+voice channel receives the same Discord `instance_id`, and the server keys the
+room off that, so the first person to open it hosts and everyone after joins
+automatically. Friends click the activity and land in your game.
+
+Two consequences worth knowing:
+
+- **Latecomers can join a game in progress.** They start at zero rather than
+  being turned away, which is what the code-based flow does.
+- **A refresh or suspend does not cost anyone their score.** Players are matched
+  on their Discord user id rather than their socket, so a returning client is
+  rebound to its existing player. Discord suspends activity iframes routinely,
+  so this matters more here than in a browser. An empty room is held for two
+  minutes before it is discarded, so everyone dropping at once is survivable.
+
+`npm run smoke:activity` exercises all of this against a local server without
+Discord: same-instance joining, a mid-game reconnect keeping its score, and a
+latecomer joining a running game.
+
+## Protecting the question library
+
+The library routes expose every correct answer, so they require the
+`ADMIN_TOKEN` from `.env`. Open **Question library**, paste the token into the
+field in the header, and it is remembered in that browser. The token is never
+part of the client bundle, so players who launch the activity cannot read it —
+which matters because without the gate, any player could open devtools and
+request the whole answer key.
+
 ## Troubleshooting
 
 **Activity loads a blank screen.** Open the activity's devtools

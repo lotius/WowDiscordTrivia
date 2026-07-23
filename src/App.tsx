@@ -36,6 +36,9 @@ function App() {
   const [typedAnswer, setTypedAnswer] = useState("");
   const [error, setError] = useState("");
   const [adminOpen, setAdminOpen] = useState(false);
+  // Inside Discord the landing screen is skipped entirely, so show a connecting
+  // state rather than flashing a create/join card nobody should use.
+  const [connecting, setConnecting] = useState(isEmbedded);
 
   const me = state?.players.find((player) => player.id === playerId);
   const isHost = state?.hostId === playerId;
@@ -47,11 +50,29 @@ function App() {
 
   useEffect(() => {
     initializeDiscord().then((discordIdentity) => {
-      if (discordIdentity) {
-        setIdentity(discordIdentity);
-        setName(discordIdentity.name);
-      }
-    });
+      if (!discordIdentity) return setConnecting(false);
+      setIdentity(discordIdentity);
+      setName(discordIdentity.name);
+
+      // Everyone in the voice channel shares one instance id, so there is no
+      // room code to exchange — joining is automatic. Re-running this on every
+      // "connect" also covers Discord suspending and resuming the iframe.
+      if (!discordIdentity.instanceId) return setConnecting(false);
+      const joinActivity = () => socket.emit("room:activity", {
+        instanceId: discordIdentity.instanceId,
+        name: discordIdentity.name,
+        avatar: discordIdentity.avatar,
+        discordUserId: discordIdentity.discordUserId
+      }, (result: { ok: boolean; state?: RoomState; playerId?: string; error?: string }) => {
+        setConnecting(false);
+        if (!result.ok) return setError(result.error || "Could not join the activity.");
+        setState(result.state!);
+        setPlayerId(result.playerId!);
+      });
+
+      socket.on("connect", joinActivity);
+      if (socket.connected) joinActivity();
+    }).catch(() => setConnecting(false));
     loadLibrary().catch(() => undefined);
   }, []);
 
@@ -136,6 +157,22 @@ function App() {
 
   if (adminOpen) {
     return <Admin onClose={() => setAdminOpen(false)} onImported={loadLibrary} />;
+  }
+
+  if (connecting) {
+    return (
+      <div className="landing">
+        <div className="stars" />
+        <main className="landing__content landing__content--centered">
+          <section className="join-card">
+            <div className="join-card__rune">✦</div>
+            <h2>Joining your party</h2>
+            <p>Connecting to the voice channel's game…</p>
+            {error && <div className="form-error">{error}</div>}
+          </section>
+        </main>
+      </div>
+    );
   }
 
   if (!state) {

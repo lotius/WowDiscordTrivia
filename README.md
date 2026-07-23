@@ -22,6 +22,10 @@ The starter database and sample global questions are created automatically in `d
 
 The app detects whether it is running inside Discord and prefixes its requests with `/.proxy` when it is, because Discord routes all activity traffic through its own proxy. Outside Discord the prefix is empty and standalone mode is used automatically.
 
+Inside Discord there are no room codes: everyone who launches the activity in a voice channel shares one Discord instance id, so they all land in the same game automatically. Latecomers can join a game already running, and a player who refreshes or gets suspended rejoins with their score intact.
+
+Set `ADMIN_TOKEN` in `.env` to unlock the question library — those routes expose correct answers, so they are gated. Paste the token into the field in the library header.
+
 See [docs/DISCORD_ACTIVITY.md](docs/DISCORD_ACTIVITY.md) for the full walkthrough and troubleshooting.
 
 ## Global question library
