@@ -13,6 +13,7 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:activity": "node scripts/smoke-activity.mjs",
     "smoke:controls": "node scripts/smoke-controls.mjs",
+    "smoke:images": "node scripts/smoke-images.mjs",
     "tunnel": "node scripts/tunnel.mjs",
     "tunnel:url": "node scripts/tunnel-url.mjs",
     "serve": "npm run build && node scripts/serve.mjs",

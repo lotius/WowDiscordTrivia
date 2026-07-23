@@ -180,12 +180,27 @@ function clearTimers(room: Room) {
 }
 
 function chooseQuestions(settings: GameSettings) {
-  const available = shuffle(getQuestions({
+  const matching = getQuestions({
     categories: settings.categories,
     difficulties: settings.difficulties,
     questionTypes: settings.questionTypes
-  }));
-  if (!available.length) throw new Error("No active questions match the selected filters.");
+  });
+
+  // hydrateQuestion drops images that cannot be served, so an image question
+  // can arrive here with none left. Asking players to identify a picture that
+  // does not load is worse than not asking at all.
+  const available = shuffle(matching.filter(
+    (question) => question.type !== "image" || question.images.length > 0
+  ));
+
+  if (!available.length) {
+    const dropped = matching.length - available.length;
+    throw new Error(dropped > 0
+      ? `No usable questions match those filters. ${dropped === 1
+        ? "1 image question was"
+        : `${dropped} image questions were`} skipped because the image files are missing from uploads.`
+      : "No active questions match the selected filters.");
+  }
   return Array.from({ length: settings.rounds }, (_, index) => available[index % available.length]);
 }
 

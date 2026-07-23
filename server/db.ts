@@ -12,6 +12,27 @@ import type {
 const projectRoot = process.cwd();
 const dataDir = path.join(projectRoot, "data");
 fs.mkdirSync(dataDir, { recursive: true });
+const uploadsDir = path.join(projectRoot, "uploads");
+
+/**
+ * Whether an image can actually be served to a player.
+ *
+ * A question referencing a file that is not on disk renders a broken image
+ * mid-round, and the round still counts. Remote URLs are taken on trust since
+ * they cannot be checked without a network call, but local paths must exist and
+ * must resolve inside the uploads directory.
+ */
+export function imageIsServable(imagePath: string) {
+  const trimmed = imagePath.trim();
+  if (!trimmed) return false;
+  if (/^https?:\/\//i.test(trimmed)) return true;
+
+  const relative = trimmed.replace(/^\/+/, "");
+  if (!relative.toLowerCase().startsWith("uploads/")) return false;
+  const resolved = path.resolve(projectRoot, relative);
+  if (resolved !== uploadsDir && !resolved.startsWith(uploadsDir + path.sep)) return false;
+  return fs.existsSync(resolved);
+}
 
 export const db = new Database(path.join(dataDir, "trivia.db"));
 db.pragma("journal_mode = WAL");
@@ -183,6 +204,32 @@ export function importQuestions(input: LibraryImportInput) {
     "INSERT OR IGNORE INTO question_tags (question_id, tag_id) VALUES (?, ?)"
   );
 
+  // Reject the whole import rather than storing a question that can never be
+  // played. The library already contains one imported from the admin panel's
+  // example JSON, whose placeholder images were never uploaded.
+  const missing: string[] = [];
+  for (const question of input.questions) {
+    if (question.type !== "image") continue;
+    const paths = [
+      ...(question.images ?? []).map((image) => typeof image === "string" ? image : image.path),
+      ...(question.image ? [question.image] : [])
+    ];
+    if (!paths.length) {
+      missing.push(`"${question.question.slice(0, 60)}" has no images`);
+      continue;
+    }
+    for (const candidate of paths) {
+      if (!imageIsServable(candidate)) missing.push(`${candidate} (not in uploads/)`);
+    }
+  }
+  if (missing.length) {
+    throw new Error(
+      `Image questions reference files that cannot be served: ${missing.slice(0, 5).join("; ")}` +
+      `${missing.length > 5 ? ` and ${missing.length - 5} more` : ""}. ` +
+      "Upload the images first, then import using the paths the upload returns."
+    );
+  }
+
   return db.transaction(() => {
     const ids: number[] = [];
     for (const question of input.questions) {
@@ -255,7 +302,8 @@ function hydrateQuestion(row: Record<string, unknown>): Question {
     category: String(row.category),
     difficulty: row.difficulty as Difficulty,
     question: String(row.question),
-    images: valuesForQuestion("question_images", "path", id),
+    // Filtered here so no consumer can hand a player an image that 404s.
+    images: valuesForQuestion("question_images", "path", id).filter(imageIsServable),
     correctAnswer: String(row.correct_answer),
     acceptedAnswers: valuesForQuestion("accepted_answers", "answer_text", id),
     distractors: valuesForQuestion("question_distractors", "answer_text", id),
