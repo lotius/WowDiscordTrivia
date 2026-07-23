@@ -13,6 +13,7 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:activity": "node scripts/smoke-activity.mjs",
     "tunnel": "node scripts/tunnel.mjs",
+    "tunnel:url": "node scripts/tunnel-url.mjs",
     "discord": "npm run build && npm start",
     "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit"
   },
