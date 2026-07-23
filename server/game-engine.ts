@@ -327,7 +327,7 @@ function nextRound(io: Server, room: Room) {
 
 function playerFromSocket(
   socket: Socket,
-  payload: { name?: string; avatar?: string; discordUserId?: string },
+  payload: { name?: string; avatar?: string; playerKey?: string },
   isHost: boolean
 ): Player {
   const name = payload.name?.trim().slice(0, 24) || `Player ${socket.id.slice(0, 4)}`;
@@ -336,7 +336,7 @@ function playerFromSocket(
     id: socket.id,
     name,
     avatar: payload.avatar,
-    discordUserId: payload.discordUserId,
+    playerKey: payload.playerKey,
     score: 0,
     streak: 0,
     connected: true,
@@ -382,7 +382,7 @@ export function installGameEngine(io: Server) {
      * user id and keeps their score rather than arriving as a stranger.
      */
     socket.on("room:activity", (
-      payload: { instanceId?: string; name?: string; avatar?: string; discordUserId?: string },
+      payload: { instanceId?: string; name?: string; avatar?: string; playerKey?: string },
       callback
     ) => {
       const instanceId = String(payload?.instanceId ?? "").trim();
@@ -418,8 +418,8 @@ export function installGameEngine(io: Server) {
       }
 
       cancelReap(existing);
-      const returning = payload.discordUserId
-        ? existing.state.players.find((player) => player.discordUserId === payload.discordUserId)
+      const returning = payload.playerKey
+        ? existing.state.players.find((player) => player.playerKey === payload.playerKey)
         : undefined;
 
       if (returning) {
@@ -458,6 +458,20 @@ export function installGameEngine(io: Server) {
       socketRooms.set(socket.id, code);
       callback?.({ ok: true, state: publicState(room), playerId: socket.id });
       emitState(io, room);
+    });
+
+    // A player Discord could not identify joins under a generated name; this
+    // lets them fix it without leaving the room they were placed in.
+    socket.on("player:rename", (payload: { name?: string }, callback) => {
+      const room = rooms.get(socketRooms.get(socket.id) ?? "");
+      const player = room?.state.players.find((candidate) => candidate.id === socket.id);
+      if (!room || !player) return callback?.({ ok: false, error: "You are not in a room." });
+      const name = String(payload?.name ?? "").trim().slice(0, 24);
+      if (!name) return callback?.({ ok: false, error: "Name cannot be empty." });
+      player.name = name;
+      upsertPlayer(socket.id, name, player.avatar);
+      emitState(io, room);
+      callback?.({ ok: true });
     });
 
     socket.on("room:settings", (settings: Partial<GameSettings>, callback) => {

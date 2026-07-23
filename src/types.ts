@@ -21,7 +21,7 @@ export interface Player {
   id: string;
   name: string;
   avatar?: string;
-  discordUserId?: string;
+  playerKey?: string;
   score: number;
   streak: number;
   connected: boolean;

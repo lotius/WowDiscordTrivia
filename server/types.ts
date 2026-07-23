@@ -47,8 +47,12 @@ export interface Player {
   id: string;
   name: string;
   avatar?: string;
-  /** Stable across reconnects, unlike the socket id used as `id`. */
-  discordUserId?: string;
+  /**
+   * Stable across reconnects, unlike the socket id used as `id`. The Discord
+   * user id when the player was identified, otherwise a per-browser id, so
+   * unidentified players survive a refresh too.
+   */
+  playerKey?: string;
   score: number;
   streak: number;
   connected: boolean;

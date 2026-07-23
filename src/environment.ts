@@ -32,3 +32,24 @@ export function assetUrl(src: string) {
 
 /** Socket.IO's own endpoint needs the same treatment as the REST routes. */
 export const socketPath = `${proxyPrefix}/socket.io`;
+
+/**
+ * Discord puts the activity instance on the query string of the iframe URL.
+ * Everyone who launched the activity in the same voice channel sees the same
+ * value, and — unlike the copy on the SDK — it is there before any OAuth
+ * handshake. Deriving the room from this means players still land together
+ * even if authorising them fails or they decline it.
+ */
+export const activityInstanceId = params.get("instance_id") ?? "";
+
+/**
+ * Stable per-browser id used to recognise a returning player when there is no
+ * Discord user id to match on, so a refresh does not cost them their score.
+ */
+export function localPlayerKey() {
+  const stored = localStorage.getItem("trivia-player-key");
+  if (stored) return stored;
+  const created = crypto.randomUUID();
+  localStorage.setItem("trivia-player-key", created);
+  return created;
+}

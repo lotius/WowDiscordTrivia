@@ -5,7 +5,7 @@ import { ImageClue } from "./components/ImageClue";
 import { PlayerRail } from "./components/PlayerRail";
 import { Timer } from "./components/Timer";
 import { initializeDiscord, type DiscordIdentity } from "./discord";
-import { apiUrl, assetUrl, isEmbedded, socketPath } from "./environment";
+import { apiUrl, assetUrl, isEmbedded, localPlayerKey, socketPath } from "./environment";
 import { useCountdown } from "./hooks/useCountdown";
 import type { CategorySummary, GameMode, GameSettings, RoomState } from "./types";
 
@@ -49,20 +49,30 @@ function App() {
   }
 
   useEffect(() => {
-    initializeDiscord().then((discordIdentity) => {
-      if (!discordIdentity) return setConnecting(false);
-      setIdentity(discordIdentity);
-      setName(discordIdentity.name);
+    initializeDiscord().then((context) => {
+      if (!context) return setConnecting(false);
+      if (context.identity) {
+        setIdentity(context.identity);
+        setName(context.identity.name);
+      }
 
       // Everyone in the voice channel shares one instance id, so there is no
-      // room code to exchange — joining is automatic. Re-running this on every
+      // room code to exchange. This deliberately does not depend on identity:
+      // a player Discord could not identify still belongs in the same room as
+      // everyone else, just under a fallback name. Re-running on every
       // "connect" also covers Discord suspending and resuming the iframe.
-      if (!discordIdentity.instanceId) return setConnecting(false);
+      if (!context.instanceId) {
+        setConnecting(false);
+        setError("Discord did not provide an activity instance. Relaunch the activity.");
+        return;
+      }
+
+      const storedName = localStorage.getItem("trivia-name") || "";
       const joinActivity = () => socket.emit("room:activity", {
-        instanceId: discordIdentity.instanceId,
-        name: discordIdentity.name,
-        avatar: discordIdentity.avatar,
-        discordUserId: discordIdentity.discordUserId
+        instanceId: context.instanceId,
+        name: context.identity?.name || storedName || "",
+        avatar: context.identity?.avatar,
+        playerKey: context.identity?.discordUserId || localPlayerKey()
       }, (result: { ok: boolean; state?: RoomState; playerId?: string; error?: string }) => {
         setConnecting(false);
         if (!result.ok) return setError(result.error || "Could not join the activity.");
@@ -131,6 +141,15 @@ function App() {
       if (!result.ok) return setError(result.error || "Could not join room.");
       setState(result.state!);
       setPlayerId(result.playerId!);
+    });
+  }
+
+  function renamePlayer(next: string) {
+    const trimmed = next.trim().slice(0, 24);
+    if (!trimmed) return;
+    localStorage.setItem("trivia-name", trimmed);
+    socket.emit("player:rename", { name: trimmed }, (result: { ok: boolean; error?: string }) => {
+      if (!result.ok) setError(result.error || "Could not change your name.");
     });
   }
 
@@ -232,6 +251,9 @@ function App() {
           updateSettings={updateSettings}
           startGame={startGame}
           error={error}
+          myName={me?.name || ""}
+          canRename={!identity}
+          onRename={renamePlayer}
         />
       );
     }
@@ -273,7 +295,10 @@ function Lobby({
   isHost,
   updateSettings,
   startGame,
-  error
+  error,
+  myName,
+  canRename,
+  onRename
 }: {
   state: RoomState;
   categories: CategorySummary[];
@@ -281,14 +306,37 @@ function Lobby({
   updateSettings: (settings: Partial<GameSettings>) => void;
   startGame: () => void;
   error: string;
+  myName: string;
+  canRename: boolean;
+  onRename: (name: string) => void;
 }) {
   const settings = state.settings;
+  const [draftName, setDraftName] = useState(myName);
   return (
     <div className="lobby-screen">
       <div className="lobby-heading">
         <span className="eyebrow">Your party is assembling</span>
         <h1>Room <button onClick={() => navigator.clipboard?.writeText(state.code)}>{state.code} ⧉</button></h1>
-        <p>Invite friends to this Activity, or share the room code.</p>
+        <p>
+          {state.players.length === 1
+            ? "Waiting for your party. Anyone who launches this Activity joins here automatically."
+            : `${state.players.length} adventurers here. Anyone launching this Activity joins automatically.`}
+        </p>
+        {canRename && (
+          <form
+            className="rename-form"
+            onSubmit={(event) => { event.preventDefault(); onRename(draftName); }}
+          >
+            <input
+              value={draftName}
+              onChange={(event) => setDraftName(event.target.value)}
+              placeholder="Your name"
+              maxLength={24}
+              aria-label="Your display name"
+            />
+            <button className="button button--secondary">Set name</button>
+          </form>
+        )}
       </div>
       {isHost ? (
         <div className="settings-grid">
